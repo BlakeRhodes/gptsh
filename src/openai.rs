@@ -82,7 +82,8 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
                         println!("Command execution cancelled.");
                     } else {
                         // Default to 'yes' if input is empty or any other input
-                        execute_command(&command);
+                        let parsed_command = extract_command(&command);
+                        execute_command(parsed_command.unwrap());
                     }
                 }
             } else {
@@ -101,3 +102,8 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
         }
     }
 }
+
+fn extract_command(input: &str) -> Option<&str> {
+    input.trim().strip_prefix("```bash\n").and_then(|s| s.strip_suffix("\n```"))
+}
+
