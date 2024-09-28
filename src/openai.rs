@@ -40,7 +40,7 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
     let client = Client::new();
 
     let request_body = OpenAIRequest {
-        model: "gpt-3.5-turbo".to_string(),
+        model: "gpt-40".to_string(),
         messages: vec![Message {
             role: "user".to_string(),
             content: format!(

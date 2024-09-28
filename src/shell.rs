@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-use std::io;
-use std::io::Write;
 use crate::process_prompt;
+use colored::Colorize;
+use std::io::Write;
+use std::{env, io};
 
 // Function to run continuous shell mode
 pub(crate) fn run_shell_mode(no_execute: bool) {
     println!("Entering continuous shell mode. Type 'exit' to quit.");
     loop {
-        print!("gptsh> ");
+        let working_directory = get_current_dir_with_tilde();
+        let username = get_username();
+        let prefix = "gptsh";
+        print!("[{}]:{}:{}$ ", prefix.red(), username.green(), working_directory.blue());
         io::stdout().flush().unwrap();
-
         let mut prompt = String::new();
         io::stdin().read_line(&mut prompt).unwrap();
         let prompt = prompt.trim();
@@ -37,4 +40,22 @@ pub(crate) fn run_shell_mode(no_execute: bool) {
             process_prompt(prompt, no_execute);
         }
     }
+}
+
+fn get_current_dir_with_tilde() -> String {
+    let current_dir = env::current_dir().expect("Failed to get current directory");
+    let home_dir = dirs::home_dir().expect("Failed to get home directory");
+
+    let current_dir_str = current_dir.to_str().expect("Current directory path is not valid UTF-8");
+    let home_dir_str = home_dir.to_str().expect("Home directory path is not valid UTF-8");
+
+    if current_dir_str.starts_with(home_dir_str) {
+        current_dir_str.replacen(home_dir_str, "~", 1)
+    } else {
+        current_dir_str.to_string()
+    }
+}
+
+fn get_username() -> String {
+    env::var("USER").unwrap_or_else(|_| "Unknown User".to_string())
 }

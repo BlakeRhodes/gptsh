@@ -23,7 +23,7 @@ use crate::openai::handle_non_success;
 
 // Function to run chat mode
 pub(crate) fn run_chat_mode() {
-    println!("Entering chat mode with GPT-4. Type 'exit' or 'quit' to end the session.");
+    println!("Entering chat mode. Type 'exit' or 'quit' to end the session.");
 
     let api_key = match env::var("OPENAI_API_KEY") {
         Ok(key) => key,
