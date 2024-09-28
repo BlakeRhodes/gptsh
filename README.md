@@ -121,3 +121,7 @@ Feel free to submit issues and pull requests if you find bugs or have suggestion
 1. Fork the repository.
 2. Create a new branch for your feature/bugfix.
 3. Submit a pull request, explaining what you've changed or fixed.
+
+Copyright 2024 Blake Rhodes
+
+This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
