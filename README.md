@@ -173,15 +173,34 @@ Follow these steps to build gptsh from source:
    ./target/release/gptsh --help
    ```
 
-## Contributing
+Here's a sample contribution guide inspired by Apache-licensed projects for your GitHub page:
 
-Feel free to submit issues and pull requests if you find bugs or have suggestions for improvements.
+---
 
-### How to Contribute:
+## Contributing to `gptsh`
 
-1. Fork the repository.
-2. Create a new branch for your feature/bugfix.
-3. Submit a pull request, explaining what you've changed or fixed.
+Thank you for considering contributing to `gptsh`! We welcome contributions from developers of all experience levels. Please follow the guidelines below to ensure a smooth process.
+
+### Getting Started
+
+1. **Fork the Repository**: Start by forking the repo and cloning it locally.
+2. **Create a Branch**: Make a branch for your feature or bug fix (`git checkout -b feature-name`).
+3. **Install Dependencies**: Run `cargo build` to set up the project.
+4. **Make Changes**: Ensure your changes pass all tests (`cargo test`).
+5. **Submit a Pull Request**: Once complete, submit a PR, describing your changes in detail.
+
+### Code of Conduct
+
+This project adheres to the [Code of Conduct](./CODE_OF_CONDUCT.md). 
+Please be respectful in all interactions.
+
+## Licensing
+
+By contributing, you agree that your contributions will be licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+## Reporting Issues
+
+If you encounter any issues or have questions, please open a GitHub issue with detailed information.
 
 Copyright 2024 Blake Rhodes
 
