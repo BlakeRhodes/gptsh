@@ -1,3 +1,4 @@
+![Rust](https://a11ybadges.com/badge?logo=rust) ![OpenAI](https://a11ybadges.com/badge?logo=openai)
 # GPTsh - A GPT-Powered Shell Environment
 
 `gptsh` is an experimental shell environment that integrates GPT models for human-in-the-loop workflows. Designed to enhance command-line productivity, it enables users to issue natural language commands, generate code snippets, and query complex tasks, all while maintaining a familiar shell interface.
