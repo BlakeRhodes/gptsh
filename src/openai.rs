@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-use std::{env, io};
-use std::io::Write;
-use reqwest::blocking::{Client, Response};
 use crate::cli::execute_command;
 use crate::models::{Message, OpenAIRequest, OpenAIResponse};
+use reqwest::blocking::{Client, Response};
+use std::io::Write;
+use std::sync::{Arc, Mutex};
+use std::{env, io, thread, time::Duration};
 
 pub(crate) fn handle_non_success(follow_up_response: Response) {
     eprintln!("Error: Received non-success status code from OpenAI API: {}", follow_up_response.status());
@@ -50,11 +51,22 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
         }],
     };
 
+    // Start loading animation
+    let stop_signal = Arc::new(Mutex::new(false));
+    let stop_signal_clone = Arc::clone(&stop_signal);
+    let handle = thread::spawn(move || {
+        start_loading_animation(stop_signal_clone);
+    });
+
     let response = client
         .post("https://api.openai.com/v1/chat/completions")
         .bearer_auth(api_key)
         .json(&request_body)
         .send();
+
+    // Stop loading animation
+    *stop_signal.lock().unwrap() = true;
+    handle.join().unwrap(); // Wait for the animation thread to finish
 
     match response {
         Ok(response) => {
@@ -107,3 +119,17 @@ fn extract_command(input: &str) -> Option<&str> {
     input.trim().strip_prefix("```bash\n").and_then(|s| s.strip_suffix("\n```"))
 }
 
+
+// Function to start the loading animation
+pub(crate) fn start_loading_animation(stop_signal: Arc<Mutex<bool>>) {
+    let spinner_chars = vec!['/', '-', '\\', '|'];
+    let mut i = 0;
+    println!("Thinking about it...");
+    while !*stop_signal.lock().unwrap() {
+        print!("\r{}", spinner_chars[i]);
+        std::io::stdout().flush().unwrap();
+        thread::sleep(Duration::from_millis(100));
+        i = (i + 1) % spinner_chars.len();
+    }
+    println!("\r "); // Clear the spinner
+}

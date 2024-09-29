@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-use std::{env, io};
+use std::{env, io, thread};
 use std::io::Write;
+use std::sync::{Arc, Mutex};
 use reqwest::blocking::Client;
 use serde_json::Value;
 use crate::cli::execute_shell_command;
-use crate::openai::handle_non_success;
+use crate::openai::{handle_non_success, start_loading_animation};
 
 // Function to run chat mode
 pub(crate) fn run_chat_mode() {
@@ -93,10 +94,17 @@ pub(crate) fn run_chat_mode() {
 
         // Prepare the request body
         let request_body = serde_json::json!({
-            "model": "gpt-4",
+            "model": "gpt-4o",
             "messages": messages,
             "functions": function_definitions,
             "function_call": "auto"
+        });
+
+        // Start loading animation
+        let stop_signal = Arc::new(Mutex::new(false));
+        let stop_signal_clone = Arc::clone(&stop_signal);
+        let handle = thread::spawn(move || {
+            start_loading_animation(stop_signal_clone);
         });
 
         // Send the request to OpenAI API
@@ -105,6 +113,10 @@ pub(crate) fn run_chat_mode() {
             .bearer_auth(&api_key)
             .json(&request_body)
             .send();
+
+        // Stop loading animation
+        *stop_signal.lock().unwrap() = true;
+        handle.join().unwrap(); // Wait for the animation thread to finish
 
         match response {
             Ok(response) => {
@@ -141,8 +153,15 @@ pub(crate) fn run_chat_mode() {
 
                             // Now, get the assistant's response using the function result
                             let follow_up_request_body = serde_json::json!({
-                                "model": "gpt-4",
+                                "model": "gpt-4o",
                                 "messages": messages
+                            });
+
+                            // Start loading animation
+                            let stop_signal = Arc::new(Mutex::new(false));
+                            let stop_signal_clone = Arc::clone(&stop_signal);
+                            let handle = thread::spawn(move || {
+                                start_loading_animation(stop_signal_clone);
                             });
 
                             let follow_up_response = client
@@ -151,6 +170,11 @@ pub(crate) fn run_chat_mode() {
                                 .json(&follow_up_request_body)
                                 .send();
 
+                            // Stop loading animation
+                            *stop_signal.lock().unwrap() = true;
+                            handle.join().unwrap(); // Wait for the animation thread to finish
+
+
                             if let Ok(follow_up_response) = follow_up_response {
                                 if follow_up_response.status().is_success() {
                                     let follow_up_openai_response: Value = follow_up_response.json().unwrap();
@@ -158,7 +182,7 @@ pub(crate) fn run_chat_mode() {
                                     let follow_up_choice = &follow_up_choices[0];
                                     let assistant_reply = follow_up_choice["message"]["content"].as_str().unwrap_or("").trim();
 
-                                    println!("\nGPT-4: {}\n", assistant_reply);
+                                    println!("\ngptsh: {}\n", assistant_reply);
                                 } else {
                                     handle_non_success(follow_up_response);
                                 }
@@ -176,7 +200,7 @@ pub(crate) fn run_chat_mode() {
                     } else {
                         // Regular assistant response
                         let assistant_reply = message["content"].as_str().unwrap_or("").trim();
-                        println!("\nGPT-4: {}\n", assistant_reply);
+                        println!("\ngptsh: {}\n", assistant_reply);
                     }
                 } else {
                     handle_non_success(response);
