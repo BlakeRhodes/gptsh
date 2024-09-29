@@ -1,4 +1,4 @@
-![Rust](https://a11ybadges.com/badge?logo=rust) ![OpenAI](https://a11ybadges.com/badge?logo=openai)
+![Rust](https://a11ybadges.com/badge?logo=rust) ![OpenAI](https://a11ybadges.com/badge?logo=openai) [![Rust](https://github.com/BlakeRhodes/gptsh/actions/workflows/rust.yml/badge.svg)](https://github.com/BlakeRhodes/gptsh/actions/workflows/rust.yml)
 # GPTsh - A GPT-Powered Command Line Tool
 
 `gptsh` is an experimental shell like environment that integrates GPT generated commands with human-in-the-loop for your workflows. Designed to enhance command-line productivity, it enables you to issue natural language commands, generate code snippets, and learn a new trick or two.
