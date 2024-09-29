@@ -1,6 +1,88 @@
-# gptsh
+# GPTsh - A GPT-Powered Shell Environment
 
-`gptsh` is a command-line tool that integrates with OpenAI's GPT-4 model to generate and execute shell commands based on user prompts. The tool features multiple modes, including continuous shell mode, chat mode, and a mode that outputs shell commands without executing them.
+`gptsh` is an experimental shell environment that integrates GPT models for human-in-the-loop workflows. Designed to enhance command-line productivity, it enables users to issue natural language commands, generate code snippets, and query complex tasks, all while maintaining a familiar shell interface.
+
+Here’s a usage example section for your README:
+
+---
+
+## Usage Examples
+
+Once `gptsh` is installed, you can start interacting with the shell using natural language commands or standard shell syntax.
+
+### Example 1: Running Shell Commands
+````bash
+$ gptsh list all the files in the current directory
+ 
+
+Generated Command:
+```bash
+ls
+```
+
+Do you want to execute this command? (Y/n) Y
+CoolTerm  Documents  Music     Public		  snap	     Videos
+Desktop   Downloads  Pictures  RustroverProjects  Templates
+````
+
+
+### Example 2: Generating a Python Script
+````bash
+$ gptsh generate a python script to find all my python files
+ 
+
+Generated Command:
+```bash
+echo -e "import os\n\nfor root, dirs, files in os.walk('.'): \n\tfor file in files:\n\t\tif file.endswith('.py'):\n\t\t\tprint(os.path.join(root, file))" > find_python_files.py
+```
+
+Do you want to execute this command? (Y/n) Y
+$ ls
+CoolTerm   Downloads             Pictures           snap      
+Desktop    find_python_files.py  Public             Templates
+Documents  Music                 RustroverProjects  Videos
+
+
+````
+
+### Example 3: Task Automation
+````bash
+$ gptsh create the automation to compression and back up my pictures weekly 
+
+Generated Command:
+```bash
+echo "0 0 * * 0 tar -czf \$HOME/backup/pictures_backup_\$(date +\%Y\%m\%d).tar.gz -C \$HOME/Pictures ." | crontab -
+```
+
+Do you want to execute this command? (Y/n) y
+$ gptsh show me my cron jobs
+ 
+
+Generated Command:
+```bash
+crontab -l
+```
+
+Do you want to execute this command? (Y/n) 
+0 0 * * 0 tar -czf $HOME/backup/pictures_backup_$(date +\%Y\%m\%d).tar.gz -C $HOME/Pictures .
+````
+
+### Solve Complex Social Issues
+````bash
+$ gptsh create a single bash script to solve world hunger and bring world peace
+ 
+
+Generated Command:
+```bash
+#!/bin/bash
+echo "Solving world hunger and bringing world peace cannot be achieved by a script. It requires global cooperation, sustainable development, and compassionate leadership."
+```
+
+Do you want to execute this command? (Y/n) Y           
+Solving world hunger and bringing world peace cannot be achieved by a script. It requires global cooperation, sustainable development, and compassionate leadership.
+````
+
+At least we tried.
 
 ## Features
 
