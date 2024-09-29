@@ -14,29 +14,39 @@
  * limitations under the License.
  */
 
-use crate::cli::execute_command;
-use crate::models::{Message, OpenAIRequest, OpenAIResponse};
-use reqwest::blocking::{Client, Response};
-use std::io::Write;
-use std::sync::{Arc, Mutex};
-use std::{env, io, thread, time::Duration};
+use std::{
+    env,
+    io::{self, Write},
+    sync::{Arc, Mutex},
+    thread
+    ,
+};
 
-pub(crate) fn handle_non_success(follow_up_response: Response) {
-    eprintln!("Error: Received non-success status code from OpenAI API: {}", follow_up_response.status());
-    let error_text = follow_up_response.text().unwrap_or_default();
+use reqwest::blocking::{Client, Response};
+
+use crate::{
+    cli::execute_command,
+    models::{Message, OpenAIRequest, OpenAIResponse},
+};
+use crate::utils::start_loading_animation;
+
+/// Handles non-success responses from the OpenAI API.
+pub(crate) fn handle_non_success(response: Response) {
+    eprintln!(
+        "Error: Received non-success status code from OpenAI API: {}",
+        response.status()
+    );
+    let error_text = response.text().unwrap_or_default();
     eprintln!("Response body: {}", error_text);
     std::process::exit(1);
 }
 
-// Function to process the user prompt
+/// Processes the user prompt and communicates with the OpenAI API.
 pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
-    let api_key = match env::var("OPENAI_API_KEY") {
-        Ok(key) => key,
-        Err(_) => {
-            eprintln!("Error: OPENAI_API_KEY not set in environment.");
-            std::process::exit(1);
-        }
-    };
+    let api_key = env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
+        eprintln!("Error: OPENAI_API_KEY not set in environment.");
+        std::process::exit(1);
+    });
 
     let client = Client::new();
 
@@ -53,10 +63,12 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
 
     // Start loading animation
     let stop_signal = Arc::new(Mutex::new(false));
-    let stop_signal_clone = Arc::clone(&stop_signal);
-    let handle = thread::spawn(move || {
-        start_loading_animation(stop_signal_clone);
-    });
+    let loading_handle = {
+        let stop_signal_clone = Arc::clone(&stop_signal);
+        thread::spawn(move || {
+            start_loading_animation(stop_signal_clone);
+        })
+    };
 
     let response = client
         .post("https://api.openai.com/v1/chat/completions")
@@ -65,24 +77,24 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
         .send();
 
     // Stop loading animation
-    *stop_signal.lock().unwrap() = true;
-    handle.join().unwrap(); // Wait for the animation thread to finish
+    {
+        let mut stop = stop_signal.lock().unwrap();
+        *stop = true;
+    }
+    loading_handle.join().unwrap();
 
     match response {
         Ok(response) => {
             if response.status().is_success() {
                 let openai_response: OpenAIResponse = response.json().unwrap();
-                let command = openai_response.choices[0]
-                    .message
-                    .content
-                    .trim()
-                    .to_string();
+                let command = openai_response.choices[0].message.content.trim().to_string();
 
                 if no_execute {
                     println!("{}", command);
                 } else {
                     println!("\nGenerated Command:\n{}\n", command);
-                    // Updated prompt message
+
+                    // Prompt user for confirmation
                     print!("Do you want to execute this command? (Y/n) ");
                     io::stdout().flush().unwrap();
 
@@ -94,18 +106,12 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
                         println!("Command execution cancelled.");
                     } else {
                         // Default to 'yes' if input is empty or any other input
-                        let parsed_command = extract_command(&command);
-                        execute_command(parsed_command.unwrap());
+                        let parsed_command = extract_command(&command).unwrap_or(&command);
+                        execute_command(parsed_command);
                     }
                 }
             } else {
-                eprintln!(
-                    "Error: Received non-success status code from OpenAI API: {}",
-                    response.status()
-                );
-                let error_text = response.text().unwrap_or_default();
-                eprintln!("Response body: {}", error_text);
-                std::process::exit(1);
+                handle_non_success(response);
             }
         }
         Err(e) => {
@@ -115,24 +121,12 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
     }
 }
 
+/// Extracts the command from a code block if present.
 fn extract_command(input: &str) -> Option<&str> {
-    input.trim().strip_prefix("```bash\n").and_then(|s| s.strip_suffix("\n```"))
+    input
+        .trim()
+        .strip_prefix("```bash\n")
+        .and_then(|s| s.strip_suffix("\n```"))
 }
 
 
-// Function to start the loading animation
-
-// Function to start the loading animation
-pub(crate) fn start_loading_animation(stop_signal: Arc<Mutex<bool>>) {
-    let spinner_chars = vec!['/', '-', '\\', '|'];
-    let mut i = 0;
-    println!("Thinking about it...");
-    while !*stop_signal.lock().unwrap() {
-        print!("\r{}", spinner_chars[i]);
-        io::stdout().flush().unwrap();
-        thread::sleep(Duration::from_millis(100));
-        i = (i + 1) % spinner_chars.len();
-    }
-    // Clear the spinner and move to a new line
-    println!("\r ");
-}

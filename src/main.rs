@@ -22,6 +22,7 @@ mod shell;
 mod chat;
 mod openai;
 mod models;
+mod utils;
 
 use crate::cli::run_mode;
 use crate::openai::process_prompt;

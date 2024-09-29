@@ -1,12 +1,13 @@
+use crate::openai::{handle_non_success};
 use reqwest::blocking::Client;
 use serde_json::Value;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use std::{env, io, thread};
 use std::time::Duration;
-use crate::openai::{handle_non_success, start_loading_animation};
+use std::{env, io, thread};
+use crate::utils::start_loading_animation;
 
-pub(crate) fn run_chat_mode() {
+pub(crate) fn run_chat_mode(verbose: bool) {
     announce_entry_to_chat_mode();
     let api_key = fetch_api_key();
     let client = Client::new();
@@ -29,7 +30,7 @@ pub(crate) fn run_chat_mode() {
         let response = send_request_to_openai_api(&client, &api_key, &request_body);
         stop_loading_indicator(stop_signal);
 
-        match process_response(response, &mut messages, &client, &api_key) {
+        match process_response(response, &mut messages, &client, &api_key, verbose) {
             Some(true) => {
                 println!("See you later pal.");
                 break;
@@ -149,11 +150,12 @@ fn process_response(
     messages: &mut Vec<Value>,
     client: &Client,
     api_key: &str,
+    verbose: bool,
 ) -> Option<bool> {
     match response {
         Ok(response) if response.status().is_success() => {
             let openai_response: Value = response.json().unwrap();
-            handle_openai_response(openai_response, messages, client, api_key)
+            handle_openai_response(openai_response, messages, client, api_key, verbose)
         }
         Ok(response) => {
             handle_non_success(response);
@@ -171,6 +173,7 @@ fn handle_openai_response(
     messages: &mut Vec<Value>,
     client: &Client,
     api_key: &str,
+    verbose: bool,
 ) -> Option<bool> {
     let choices = openai_response["choices"].as_array().unwrap();
     let choice = &choices[0];
@@ -182,7 +185,7 @@ fn handle_openai_response(
     });
 
     if let Some(content) = message["content"].as_str() {
-        assistant_message["content"] = serde_json::Value::String(content.to_string());
+        assistant_message["content"] = Value::String(content.to_string());
     }
 
     if let Some(function_call) = message.get("function_call") {
@@ -192,7 +195,7 @@ fn handle_openai_response(
     messages.push(assistant_message);
 
     if let Some(function_call) = message.get("function_call") {
-        handle_function_call(function_call, messages, client, api_key)
+        handle_function_call(function_call, messages, client, api_key, verbose)
     } else {
         println!(
             "\ngptsh: {}\n",
@@ -207,12 +210,13 @@ fn handle_function_call(
     messages: &mut Vec<Value>,
     client: &Client,
     api_key: &str,
+    verbose: bool,
 ) -> Option<bool> {
     let function_name = function_call["name"].as_str().unwrap();
 
     match function_name {
         "execute_command" => {
-            execute_command_function(function_call, messages);
+            execute_command_function(function_call, messages, verbose);
 
             // After executing the function, make another API call
             let request_body = prepare_request_body(&messages);
@@ -221,7 +225,7 @@ fn handle_function_call(
             let response = send_request_to_openai_api(client, api_key, &request_body);
             stop_loading_indicator(stop_signal);
 
-            match process_response(response, messages, client, api_key) {
+            match process_response(response, messages, client, api_key, verbose) {
                 Some(true) => Some(true),
                 Some(false) => None,
                 None => None,
@@ -238,7 +242,7 @@ fn handle_function_call(
     }
 }
 
-fn execute_command_function(function_call: &Value, messages: &mut Vec<Value>) {
+fn execute_command_function(function_call: &Value, messages: &mut Vec<Value>, verbose: bool) {
     let arguments_str = function_call["arguments"].as_str().unwrap_or_default();
     let arguments: Value =
         serde_json::from_str(arguments_str).unwrap_or_else(|_| serde_json::json!({}));
@@ -270,11 +274,13 @@ fn execute_command_function(function_call: &Value, messages: &mut Vec<Value>) {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let stderr = String::from_utf8_lossy(&output.stderr);
 
-                if !stdout.is_empty() {
-                    println!("Command output:\n{}", stdout);
-                }
-                if !stderr.is_empty() {
-                    eprintln!("Command error:\n{}", stderr);
+                if verbose {
+                    if !stdout.is_empty() {
+                        println!("Command output:\n{}", stdout);
+                    }
+                    if !stderr.is_empty() {
+                        eprintln!("Command error:\n{}", stderr);
+                    }
                 }
 
                 // Add the command's output to messages for further processing or display

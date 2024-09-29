@@ -33,7 +33,7 @@ pub(crate) fn run_mode() -> bool {
     if let Some((continuous_mode, chat_mode, no_execute, prompt_args)) = parse_arguments() {
         // Execute the appropriate mode
         if chat_mode {
-            run_chat_mode(false);
+            run_chat_mode();
         } else if continuous_mode {
             run_shell_mode(no_execute);
         } else if !prompt_args.is_empty() {

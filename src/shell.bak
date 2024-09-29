@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-use crate::process_prompt;
-use crate::utils::{get_current_dir_with_tilde, get_username};
-use colored::Colorize;
+use std::{env, io};
 use std::io::Write;
-use std::io;
+use colored::Colorize;
+use crate::process_prompt;
 
 // Runs the continuous shell mode
 pub(crate) fn run_shell_mode(no_execute: bool) {
@@ -61,3 +60,26 @@ fn read_user_input() -> String {
     input.trim().to_string()
 }
 
+// Gets the current directory, replacing the home directory path with '~'
+fn get_current_dir_with_tilde() -> String {
+    let current_dir = env::current_dir().expect("Failed to get current directory");
+    let home_dir = dirs::home_dir().expect("Failed to get home directory");
+
+    let current_dir_str = current_dir
+        .to_str()
+        .expect("Current directory path is not valid UTF-8");
+    let home_dir_str = home_dir
+        .to_str()
+        .expect("Home directory path is not valid UTF-8");
+
+    if current_dir_str.starts_with(home_dir_str) {
+        current_dir_str.replacen(home_dir_str, "~", 1)
+    } else {
+        current_dir_str.to_string()
+    }
+}
+
+// Retrieves the username from environment variables
+fn get_username() -> String {
+    env::var("USER").unwrap_or_else(|_| "Unknown User".to_string())
+}
