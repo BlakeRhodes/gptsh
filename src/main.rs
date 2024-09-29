@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-// src/main.rs
-
-mod tests;
 mod cli;
 mod shell;
 mod chat;
