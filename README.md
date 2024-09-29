@@ -1,18 +1,14 @@
 ![Rust](https://a11ybadges.com/badge?logo=rust) ![OpenAI](https://a11ybadges.com/badge?logo=openai)
-# GPTsh - A GPT-Powered Shell Environment
+# GPTsh - A GPT-Powered Command Line Tool
 
-`gptsh` is an experimental shell environment that integrates GPT models for human-in-the-loop workflows. Designed to enhance command-line productivity, it enables users to issue natural language commands, generate code snippets, and query complex tasks, all while maintaining a familiar shell interface.
-
-Here’s a usage example section for your README:
-
----
+`gptsh` is an experimental shell like environment that integrates GPT generated commands with human-in-the-loop for your workflows. Designed to enhance command-line productivity, it enables you to issue natural language commands, generate code snippets, and learn a new trick or two.
 
 ## Usage Examples
 
 Once `gptsh` is installed, you can start interacting with the shell using natural language commands or standard shell syntax.
 
 ### Example 1: Running Shell Commands
-````bash
+````
 $ gptsh list all the files in the current directory
  
 
@@ -28,7 +24,7 @@ Desktop   Downloads  Pictures  RustroverProjects  Templates
 
 
 ### Example 2: Generating a Python Script
-````bash
+````
 $ gptsh generate a python script to find all my python files
  
 
@@ -47,7 +43,7 @@ Documents  Music                 RustroverProjects  Videos
 ````
 
 ### Example 3: Task Automation
-````bash
+````
 $ gptsh create the automation to compression and back up my pictures weekly 
 
 Generated Command:
@@ -69,7 +65,7 @@ Do you want to execute this command? (Y/n)
 ````
 
 ### Solve Complex Social Issues
-````bash
+````
 $ gptsh create a single bash script to solve world hunger and bring world peace
  
 
@@ -92,62 +88,147 @@ At least we tried.
 - **No Execute Mode**: Output the generated shell commands without running them.
 - **Environment Integration**: Load configuration from a `.env` file, including the OpenAI API key.
 
-## Prerequisites
+## Usage
+
+### Prerequisites
 
 Before building or using this project, ensure you have the following:
 
 - Rust programming language installed. You can get Rust [here](https://www.rust-lang.org/learn/get-started).
 - OpenAI API key: You will need an API key from OpenAI to use the chat features. Set it in a `.env` file.
 
-## Usage
-
 `gptsh` can be run in various modes depending on your needs.
+
+### Providing Prompts
+
+You can provide a shell prompt directly via the command line:
+
+````
+$ gptsh creat a new directory and add a couple of sample files to it
+ 
+
+Generated Command:
+```bash
+mkdir new_directory && touch new_directory/sample_file1.txt new_directory/sample_file2.txt
+```
+
+Do you want to execute this command? (Y/n) 
+
+````
+
 
 ### Help
 
 To view help and available commands:
 
-```bash
+```
 gptsh --help
+Usage: gptsh [OPTIONS] [PROMPT]
+Options:
+--help, -h        Show this help message
+--shell           Run in continuous shell mode
+--chat            Run in chat mode with GPT-4
+--no-execute      Output the generated command without executing it
 ```
 
 ### Continuous Shell Mode
 
 This mode allows you to interact with gptsh continuously, generating and executing commands on the fly.
 
+````
+$ gptsh --shell
+Entering continuous shell mode. Type 'exit' to quit.
+[gptsh]:user:~/RustroverProjects/gptsh$ clear out my chron jobs
+ 
+
+Generated Command:
 ```bash
-gptsh --shell
+crontab -r
 ```
+
+Do you want to execute this command? (Y/n) 
+[gptsh]:user:~/RustroverProjects/gptsh$ 
+
+````
 
 ### Chat Mode
 
-This mode interacts with GPT-4 as a chat assistant. You need an OpenAI API key set in your environment.
+This mode interacts with GPT-4 as a chat assistant.
 
-```bash
-gptsh --chat
-```
+````
+$ gptsh --chat
+Entering chat mode. Type 'exit' or 'quit' to end the session.
+You: What's up frendo?
+ 
 
-Make sure to have the OpenAI API key defined in a `.env` file:
+gptsh: Hello, pal! I'm here to assist you. How may I aid you today?
 
-```
-OPENAI_API_KEY=your_api_key_here
-```
+You: tell me about how write good software
+ 
+
+gptsh: Absolutely, buddy! Writing good software revolves around several principles:
+
+**1. Understand the Problem:** Before writing a single line of code, it's essential to have a clear understanding of the problem you aim to solve through software.
+
+**2. Plan:**
+Layout a blueprint of your software architecture. Sketch workflows and identify components and their interactions.
+
+**3. Write Clean and Readable Code:**
+Your code should be easy to understand and maintain. Consistently follow naming conventions, use accurate comments, and avoid coding practices that make your code complex.
+
+**4. Maintainability:**
+The codebase should be organised to make updates and modifications easy. High cohesion (grouping related functionalities) and low coupling (minimise interdependence between components) are key principles here.
+
+**5. Test Thoroughly:**
+Robust software is tested well before deployment. Automated tests, manual testing, and even user acceptance testing help identify bugs and issues before they become problems.
+
+**6. Refine and Refactor:**
+Good software is continuously improved. Regularly check for areas of improvement and refactor code to make it more efficient, readable or maintainable.
+
+**7. Documentation:**
+A well-documented codebase is a dream to work with, often easier to understand and debug. Usage, configuration, installation, and any other essential information should be clearly documented.
+
+These are the fundamental principles of writing good software. However, the list doesn't end here. There are many more practices that depend on context, personal experience, team guidelines, etc.
+
+You: Awesome! save that for me to read later
+ 
+
+gptsh: Sure thing, pal!
+
+ 
+About to execute command: 'echo '1. Understand the Problem: Before writing a single line of code, it\'s essential to have a clear understanding of the problem you aim to solve through software.
+
+...
+
+7. Documentation: A well-documented codebase is a dream to work with, often easier to understand and debug. Usage, configuration, installation, and any other essential information should be clearly documented.
+' > good_software_guidelines.md'
+Do you want to proceed? [Y/n] Y
+
+ 
+
+gptsh: Done, pal! I have written the information about good software practices to a file named `good_software_guidelines.md`. You can access it anytime for your reference!
+
+Anything else I can assist you with today?
+
+You: nope, let's call it a day
+ 
+See you later pal.
+$
+
+````
 
 ### No Execute Mode
 
 If you want gptsh to generate commands but not execute them, use the `--no-execute` flag:
 
+````
+$ gptsh --no-execute remove all these dang files!
+ 
 ```bash
-gptsh --no-execute "your shell command prompt"
+rm -rf *
 ```
 
-### Providing Prompts
-
-You can provide a shell prompt directly via the command line:
-
-```bash
-gptsh "create a new directory and list its contents"
-```
+````
 
 ## Building from Source
 
