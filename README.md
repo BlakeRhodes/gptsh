@@ -1,4 +1,4 @@
-![OpenAI](https://a11ybadges.com/badge?logo=openai) 
+![OpenAI](https://a11ybadges.com/badge?logo=openai)  
 [![Rust](https://github.com/BlakeRhodes/gptsh/actions/workflows/rust.yml/badge.svg)](https://github.com/BlakeRhodes/gptsh/actions/workflows/rust.yml)
 # GPTsh - A GPT-Powered Command Line Tool
 
