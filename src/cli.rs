@@ -14,14 +14,12 @@
  * limitations under the License.
  */
 
-use std::{env, io};
-use std::io::Write;
-use std::process::Command;
-use dotenv::dotenv;
-use serde_json::Value;
 use crate::chat::run_chat_mode;
 use crate::openai::process_prompt;
 use crate::shell::run_shell_mode;
+use dotenv::dotenv;
+use std::process::Command;
+use std::env;
 
 pub(crate) fn run_mode() -> bool {
     let (continuous_mode, chat_mode, no_execute, prompt_args) = match parse_arguments() {
@@ -63,55 +61,6 @@ pub(crate) fn is_shell_builtin(command: &str) -> bool {
     }
     let first_word = command.split_whitespace().next().unwrap_or("");
     builtins.contains(&first_word)
-}
-
-
-// Function to execute shell commands (used in function calling)
-pub(crate) fn execute_shell_command(args: &serde_json::Map<String, Value>) -> Value {
-    if let Some(Value::String(command)) = args.get("command") {
-        // Prompt user for confirmation
-        println!("The assistant wants to execute the following command: '{}'", command);
-        print!("Do you allow this command to be executed? (Y/n) ");
-        io::stdout().flush().unwrap();
-
-        let mut confirmation = String::new();
-        io::stdin().read_line(&mut confirmation).unwrap();
-        let confirmation = confirmation.trim();
-
-        if confirmation.eq_ignore_ascii_case("n") || confirmation.eq_ignore_ascii_case("no") {
-            return serde_json::json!({
-                "error": "User denied permission to execute the command."
-            });
-        }
-
-        // Execute the command
-        let output = Command::new("bash")
-            .arg("-c")
-            .arg(command)
-            .output();
-
-        match output {
-            Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-
-                serde_json::json!({
-                    "stdout": stdout,
-                    "stderr": stderr,
-                    "status": output.status.code()
-                })
-            }
-            Err(e) => {
-                serde_json::json!({
-                    "error": format!("Failed to execute command: {}", e)
-                })
-            }
-        }
-    } else {
-        serde_json::json!({
-            "error": "No command provided."
-        })
-    }
 }
 
 // Function to execute the command

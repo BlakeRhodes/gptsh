@@ -121,15 +121,18 @@ fn extract_command(input: &str) -> Option<&str> {
 
 
 // Function to start the loading animation
+
+// Function to start the loading animation
 pub(crate) fn start_loading_animation(stop_signal: Arc<Mutex<bool>>) {
     let spinner_chars = vec!['/', '-', '\\', '|'];
     let mut i = 0;
     println!("Thinking about it...");
     while !*stop_signal.lock().unwrap() {
         print!("\r{}", spinner_chars[i]);
-        std::io::stdout().flush().unwrap();
+        io::stdout().flush().unwrap();
         thread::sleep(Duration::from_millis(100));
         i = (i + 1) % spinner_chars.len();
     }
-    println!("\r "); // Clear the spinner
+    // Clear the spinner and move to a new line
+    println!("\r ");
 }

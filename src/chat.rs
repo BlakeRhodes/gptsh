@@ -1,50 +1,95 @@
-/*
- * Copyright 2024 Blake Rhodes
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-use std::{env, io, thread};
-use std::io::Write;
-use std::sync::{Arc, Mutex};
 use reqwest::blocking::Client;
 use serde_json::Value;
-use crate::cli::execute_shell_command;
+use std::io::Write;
+use std::sync::{Arc, Mutex};
+use std::{env, io, thread};
+use std::time::Duration;
 use crate::openai::{handle_non_success, start_loading_animation};
 
-// Function to run chat mode
 pub(crate) fn run_chat_mode() {
-    println!("Entering chat mode. Type 'exit' or 'quit' to end the session.");
-
-    let api_key = match env::var("OPENAI_API_KEY") {
-        Ok(key) => key,
-        Err(_) => {
-            eprintln!("Error: OPENAI_API_KEY not set in environment.");
-            std::process::exit(1);
-        }
-    };
-
+    announce_entry_to_chat_mode();
+    let api_key = fetch_api_key();
     let client = Client::new();
-    let mut messages = Vec::new();
+    let mut messages = initialize_messages_with_system_prompt();
 
-    // Initial system prompt
-    messages.push(serde_json::json!({
+    loop {
+        let user_input = read_user_input().trim().to_string();
+        if should_exit(&user_input) {
+            break;
+        }
+
+        if user_input.is_empty() {
+            continue;
+        }
+
+        add_user_message_to_conversation(&mut messages, &user_input);
+        let request_body = prepare_request_body(&messages);
+
+        let stop_signal = start_loading_indicator();
+        let response = send_request_to_openai_api(&client, &api_key, &request_body);
+        stop_loading_indicator(stop_signal);
+
+        match process_response(response, &mut messages, &client, &api_key) {
+            Some(true) => {
+                println!("See you later pal.");
+                break;
+            }
+            Some(false) => continue,
+            None => {}
+        }
+    }
+}
+
+fn announce_entry_to_chat_mode() {
+    println!("Entering chat mode. Type 'exit' or 'quit' to end the session.");
+}
+
+fn fetch_api_key() -> String {
+    env::var("OPENAI_API_KEY").expect("Error: OPENAI_API_KEY not set in environment.")
+}
+
+fn initialize_messages_with_system_prompt() -> Vec<Value> {
+    vec![serde_json::json!({
         "role": "system",
-        "content": "You are a helpful assistant. When appropriate, you can execute shell commands to assist the user. If you detect that the user wants to exit the conversation, you should call the 'exit_chat' function."
-    }));
+        "content": "You are a helpful assistant chatting in a terminal, use proper formatting so that your answers are easy to read. Address the user as pal or buddy."
+    })]
+}
 
-    // Define the function specifications
-    let function_definitions = vec![
+fn read_user_input() -> String {
+    print!("You: ");
+    io::stdout().flush().unwrap();
+    let mut user_input = String::new();
+    io::stdin().read_line(&mut user_input).unwrap();
+    user_input
+}
+
+fn should_exit(user_input: &str) -> bool {
+    if user_input.eq_ignore_ascii_case("exit") || user_input.eq_ignore_ascii_case("quit") {
+        println!("Exiting chat mode.");
+        true
+    } else {
+        false
+    }
+}
+
+fn add_user_message_to_conversation(messages: &mut Vec<Value>, user_input: &str) {
+    messages.push(serde_json::json!({
+        "role": "user",
+        "content": user_input
+    }));
+}
+
+fn prepare_request_body(messages: &Vec<Value>) -> Value {
+    serde_json::json!({
+        "model": "gpt-4",
+        "messages": messages,
+        "functions": function_definitions(),
+        "function_call": "auto"
+    })
+}
+
+fn function_definitions() -> Vec<Value> {
+    vec![
         serde_json::json!({
             "name": "execute_command",
             "description": "Executes a shell command and returns the output.",
@@ -67,150 +112,187 @@ pub(crate) fn run_chat_mode() {
                 "properties": {}
             }
         })
-    ];
+    ]
+}
 
-    loop {
-        print!("You: ");
-        io::stdout().flush().unwrap();
+fn start_loading_indicator() -> Arc<Mutex<bool>> {
+    let stop_signal = Arc::new(Mutex::new(false));
+    let stop_signal_clone = Arc::clone(&stop_signal);
+    thread::spawn(move || {
+        start_loading_animation(stop_signal_clone);
+    });
+    stop_signal
+}
 
-        let mut user_input = String::new();
-        io::stdin().read_line(&mut user_input).unwrap();
-        let user_input = user_input.trim();
+fn send_request_to_openai_api(
+    client: &Client,
+    api_key: &str,
+    request_body: &Value,
+) -> reqwest::Result<reqwest::blocking::Response> {
+    client
+        .post("https://api.openai.com/v1/chat/completions")
+        .bearer_auth(api_key)
+        .json(request_body)
+        .send()
+}
 
-        if user_input.eq_ignore_ascii_case("exit") || user_input.eq_ignore_ascii_case("quit") {
-            println!("Exiting chat mode.");
-            break;
+fn stop_loading_indicator(stop_signal: Arc<Mutex<bool>>) {
+    *stop_signal.lock().unwrap() = true;
+    thread::sleep(Duration::from_millis(100));
+    print!("\x1b[2K");
+    print!("\r");
+    io::stdout().flush().unwrap();
+}
+
+fn process_response(
+    response: reqwest::Result<reqwest::blocking::Response>,
+    messages: &mut Vec<Value>,
+    client: &Client,
+    api_key: &str,
+) -> Option<bool> {
+    match response {
+        Ok(response) if response.status().is_success() => {
+            let openai_response: Value = response.json().unwrap();
+            handle_openai_response(openai_response, messages, client, api_key)
         }
-
-        if user_input.is_empty() {
-            continue;
+        Ok(response) => {
+            handle_non_success(response);
+            None
         }
+        Err(e) => {
+            eprintln!("Error communicating with OpenAI API: {}", e);
+            None
+        }
+    }
+}
 
-        // Add user's message to the conversation
-        messages.push(serde_json::json!({
-            "role": "user",
-            "content": user_input
-        }));
+fn handle_openai_response(
+    openai_response: Value,
+    messages: &mut Vec<Value>,
+    client: &Client,
+    api_key: &str,
+) -> Option<bool> {
+    let choices = openai_response["choices"].as_array().unwrap();
+    let choice = &choices[0];
+    let message = &choice["message"];
 
-        // Prepare the request body
-        let request_body = serde_json::json!({
-            "model": "gpt-4o",
-            "messages": messages,
-            "functions": function_definitions,
-            "function_call": "auto"
-        });
+    // Add the assistant's message to the conversation history
+    let mut assistant_message = serde_json::json!({
+        "role": "assistant",
+    });
 
-        // Start loading animation
-        let stop_signal = Arc::new(Mutex::new(false));
-        let stop_signal_clone = Arc::clone(&stop_signal);
-        let handle = thread::spawn(move || {
-            start_loading_animation(stop_signal_clone);
-        });
+    if let Some(content) = message["content"].as_str() {
+        assistant_message["content"] = serde_json::Value::String(content.to_string());
+    }
 
-        // Send the request to OpenAI API
-        let response = client
-            .post("https://api.openai.com/v1/chat/completions")
-            .bearer_auth(&api_key)
-            .json(&request_body)
-            .send();
+    if let Some(function_call) = message.get("function_call") {
+        assistant_message["function_call"] = function_call.clone();
+    }
 
-        // Stop loading animation
-        *stop_signal.lock().unwrap() = true;
-        handle.join().unwrap(); // Wait for the animation thread to finish
+    messages.push(assistant_message);
 
-        match response {
-            Ok(response) => {
-                if response.status().is_success() {
-                    let openai_response: Value = response.json().unwrap();
-                    let choices = openai_response["choices"].as_array().unwrap();
-                    let choice = &choices[0];
-                    let message = &choice["message"];
+    if let Some(function_call) = message.get("function_call") {
+        handle_function_call(function_call, messages, client, api_key)
+    } else {
+        println!(
+            "\ngptsh: {}\n",
+            message["content"].as_str().unwrap_or("").trim()
+        );
+        None
+    }
+}
 
-                    if message.get("function_call").is_some() {
-                        // Assistant is requesting a function call
-                        let function_call = &message["function_call"];
-                        let function_name = function_call["name"].as_str().unwrap();
+fn handle_function_call(
+    function_call: &Value,
+    messages: &mut Vec<Value>,
+    client: &Client,
+    api_key: &str,
+) -> Option<bool> {
+    let function_name = function_call["name"].as_str().unwrap();
 
-                        if function_name == "execute_command" {
-                            let arguments = function_call["arguments"].as_str().unwrap();
-                            let args: serde_json::Map<String, Value> = serde_json::from_str(arguments).unwrap();
-                            let result = execute_shell_command(&args);
+    match function_name {
+        "execute_command" => {
+            execute_command_function(function_call, messages);
 
-                            // Add the assistant's function call to messages
-                            let mut assistant_message = serde_json::Map::new();
-                            assistant_message.insert("role".to_string(), Value::String("assistant".to_string()));
-                            assistant_message.insert("content".to_string(), Value::Null);
-                            assistant_message.insert("function_call".to_string(), function_call.clone());
+            // After executing the function, make another API call
+            let request_body = prepare_request_body(&messages);
 
-                            messages.push(Value::Object(assistant_message));
+            let stop_signal = start_loading_indicator();
+            let response = send_request_to_openai_api(client, api_key, &request_body);
+            stop_loading_indicator(stop_signal);
 
-                            // Add the function's result to messages
-                            messages.push(serde_json::json!({
-                                "role": "function",
-                                "name": "execute_command",
-                                "content": serde_json::to_string(&result).unwrap()
-                            }));
+            match process_response(response, messages, client, api_key) {
+                Some(true) => Some(true),
+                Some(false) => None,
+                None => None,
+            }
+        }
+        "exit_chat" => Some(true),
+        _ => {
+            eprintln!(
+                "Error: Assistant requested an unknown function '{}'.",
+                function_name
+            );
+            None
+        }
+    }
+}
 
-                            // Now, get the assistant's response using the function result
-                            let follow_up_request_body = serde_json::json!({
-                                "model": "gpt-4o",
-                                "messages": messages
-                            });
+fn execute_command_function(function_call: &Value, messages: &mut Vec<Value>) {
+    let arguments_str = function_call["arguments"].as_str().unwrap_or_default();
+    let arguments: Value =
+        serde_json::from_str(arguments_str).unwrap_or_else(|_| serde_json::json!({}));
+    let command = arguments["command"].as_str().unwrap_or_default();
 
-                            // Start loading animation
-                            let stop_signal = Arc::new(Mutex::new(false));
-                            let stop_signal_clone = Arc::clone(&stop_signal);
-                            let handle = thread::spawn(move || {
-                                start_loading_animation(stop_signal_clone);
-                            });
+    println!("About to execute command: '{}'", command);
+    println!("Do you want to proceed? [Y/n]");
 
-                            let follow_up_response = client
-                                .post("https://api.openai.com/v1/chat/completions")
-                                .bearer_auth(&api_key)
-                                .json(&follow_up_request_body)
-                                .send();
+    let mut confirmation = String::new();
+    io::stdin()
+        .read_line(&mut confirmation)
+        .expect("Failed to read line");
+    if confirmation.trim().is_empty() || confirmation.trim().eq_ignore_ascii_case("y") {
+        // Adjust the command for 'ls' to force column output
+        let adjusted_command = if command.trim() == "ls" {
+            "ls -C"
+        } else {
+            command
+        };
 
-                            // Stop loading animation
-                            *stop_signal.lock().unwrap() = true;
-                            handle.join().unwrap(); // Wait for the animation thread to finish
+        // Execute the command
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(adjusted_command)
+            .output();
 
+        match output {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
 
-                            if let Ok(follow_up_response) = follow_up_response {
-                                if follow_up_response.status().is_success() {
-                                    let follow_up_openai_response: Value = follow_up_response.json().unwrap();
-                                    let follow_up_choices = follow_up_openai_response["choices"].as_array().unwrap();
-                                    let follow_up_choice = &follow_up_choices[0];
-                                    let assistant_reply = follow_up_choice["message"]["content"].as_str().unwrap_or("").trim();
-
-                                    println!("\ngptsh: {}\n", assistant_reply);
-                                } else {
-                                    handle_non_success(follow_up_response);
-                                }
-                            } else {
-                                eprintln!("Error communicating with OpenAI API during follow-up request.");
-                                std::process::exit(1);
-                            }
-                        } else if function_name == "exit_chat" {
-                            println!("Assistant has detected that you want to exit the chat. Exiting.");
-                            break;
-                        } else {
-                            eprintln!("Error: Assistant requested an unknown function '{}'.", function_name);
-                            std::process::exit(1);
-                        }
-                    } else {
-                        // Regular assistant response
-                        let assistant_reply = message["content"].as_str().unwrap_or("").trim();
-                        println!("\ngptsh: {}\n", assistant_reply);
-                    }
-                } else {
-                    handle_non_success(response);
+                if !stdout.is_empty() {
+                    println!("Command output:\n{}", stdout);
                 }
+                if !stderr.is_empty() {
+                    eprintln!("Command error:\n{}", stderr);
+                }
+
+                // Add the command's output to messages for further processing or display
+                messages.push(serde_json::json!({
+                    "role": "function",
+                    "name": "execute_command",
+                    "content": stdout.to_string()
+                }));
             }
             Err(e) => {
-                eprintln!("Error communicating with OpenAI API: {}", e);
-                eprintln!("Tip: Check your internet connection and try again.");
-                std::process::exit(1);
+                let error_message = format!("Failed to execute command: {}", e);
+                eprintln!("{}", error_message);
             }
         }
+
+        // Flush stdout to ensure all output is written to the terminal
+        io::stdout().flush().expect("Failed to flush stdout");
+    } else {
+        println!("Command execution cancelled.");
     }
 }
