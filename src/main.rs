@@ -22,7 +22,6 @@ mod models;
 mod utils;
 
 use crate::cli::run_mode;
-use crate::openai::process_prompt;
 
 fn main() {
     if run_mode() { return; }
