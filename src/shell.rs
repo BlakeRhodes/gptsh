@@ -8,7 +8,6 @@ use rustyline::{Editor};
 use rustyline::history::FileHistory;
 
 // Enum representing the different modes of the shell
-#[derive(Debug, PartialEq)]
 enum Mode {
     LlmSuggestion,
     DirectCommand,
@@ -31,7 +30,7 @@ impl ShellState {
 // Main function to run the shell in continuous mode
 pub(crate) fn run_shell_mode(no_execute: bool) {
     let mut state = ShellState::new();
-    println!("Entering continuous shell mode. Type 'exit' to quit.");
+    println!("{}", "Entering continuous shell mode. Type 'exit' to quit.".cyan());
 
     // Initialize rustyline Editor for input handling with history
     let mut rl = Editor::<(), FileHistory>::new().expect("Failed to initialize editor");
@@ -46,13 +45,12 @@ pub(crate) fn run_shell_mode(no_execute: bool) {
     }
 
     loop {
-        display_prompt(&state.mode);
         let prompt_text = display_prompt(&state.mode);
         let prompt = match rl.readline(prompt_text.as_str()) {
             Ok(line) => line,
             Err(ReadlineError::Interrupted) => {
                 // Handle Ctrl-C
-                println!("^C");
+                println!("{}", "^C".red());
                 continue;
             }
             Err(ReadlineError::Eof) => {
@@ -88,25 +86,40 @@ pub(crate) fn run_shell_mode(no_execute: bool) {
 
 // Function to check if a command is meant to switch modes
 fn is_mode_switch_command(input: &str) -> bool {
-    input.starts_with("u-")
+    input.eq_ignore_ascii_case("youdu")
 }
 
 // Function to switch between the different modes of the shell and execute the command
 fn switch_mode(state: &mut ShellState, input: &str, no_execute: bool) {
     state.mode = match state.mode {
         Mode::LlmSuggestion => {
-            println!("Switching to Direct Command Mode");
+            println!("{}", "Switching to Direct Command Mode".green());
             Mode::DirectCommand
         }
         Mode::DirectCommand => {
-            println!("Switching to LLM Suggestion Mode");
+            println!("{}", "Switching to LLM Suggestion Mode".green());
             Mode::LlmSuggestion
         }
     };
 
-    // After switching modes, execute the command without the "u-" prefix
+    // Display confirmation message
+    println!(
+        "{}",
+        format!(
+            "Mode changed to {}.",
+            match state.mode {
+                Mode::LlmSuggestion => "LLM Suggestion Mode",
+                Mode::DirectCommand => "Direct Command Mode",
+            }
+        )
+            .blue()
+    );
+
+    // After switching modes, execute the command if there's any additional input
     let trimmed_input = trim_mode_prefix(input);
-    handle_input(trimmed_input, state, no_execute);
+    if !trimmed_input.is_empty() && trimmed_input != "youdu" {
+        handle_input(trimmed_input, state, no_execute);
+    }
 }
 
 // Updated handle_input function to delegate command handling
@@ -119,7 +132,7 @@ fn handle_input(input: &str, state: &ShellState, no_execute: bool) {
 
 // Helper function to remove the mode switch prefix "u-" from the input
 fn trim_mode_prefix(input: &str) -> &str {
-    if is_mode_switch_command(input) {
+    if input.starts_with("u-") {
         &input[2..] // Remove the "u-" prefix
     } else {
         input
@@ -146,12 +159,18 @@ fn display_prompt(mode: &Mode) -> String {
         Mode::DirectCommand => "you".yellow(),
     };
 
+    let mode_indicator = match mode {
+        Mode::LlmSuggestion => "(LLM)",
+        Mode::DirectCommand => "(CMD)",
+    };
+
     let prompt = format!(
-        "[{}]:{}:{}$ ",
+        "[{} {}]:{}:{}$ ",
         prompt_prefix,
+        mode_indicator,
         username.green(),
         working_directory.blue()
     );
 
-    return prompt;
+    prompt
 }
