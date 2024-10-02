@@ -16,10 +16,11 @@
 
 use std::{
     env,
-    io::{self, Write},
+    fs::{self, OpenOptions},
+    io::{self, BufRead, BufReader, Write},
+    path::PathBuf,
     sync::{Arc, Mutex},
-    thread
-    ,
+    thread,
 };
 
 use reqwest::blocking::{Client, Response};
@@ -29,6 +30,9 @@ use crate::{
     models::{Message, OpenAIRequest, OpenAIResponse},
 };
 use crate::utils::start_loading_animation;
+
+/// Path to the banned commands file.
+const BANNED_COMMANDS_FILE: &str = ".gptsh_banned";
 
 /// Handles non-success responses from the OpenAI API.
 pub(crate) fn handle_non_success(response: Response) {
@@ -41,7 +45,36 @@ pub(crate) fn handle_non_success(response: Response) {
     std::process::exit(1);
 }
 
+/// Loads the list of banned commands from the `.gptsh_banned` file.
+/// If the file does not exist, it returns an empty vector.
+fn load_banned_commands() -> io::Result<Vec<String>> {
+    let path = PathBuf::from(BANNED_COMMANDS_FILE);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let file = fs::File::open(path)?;
+    let reader = BufReader::new(file);
+    let commands = reader
+        .lines()
+        .filter_map(Result::ok)
+        .collect::<Vec<String>>();
+    Ok(commands)
+}
+
+/// Adds a new command to the `.gptsh_banned` file.
+/// If the file does not exist, it creates one.
+fn add_banned_command(command: &str) -> io::Result<()> {
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(BANNED_COMMANDS_FILE)?;
+    writeln!(file, "{}", command)?;
+    Ok(())
+}
+
 /// Processes the user prompt and communicates with the OpenAI API.
+/// Integrates the Never Allow Commands feature to prevent execution of banned commands.
 pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
     let api_key = env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
         eprintln!("Error: OPENAI_API_KEY not set in environment.");
@@ -87,27 +120,58 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
         Ok(response) => {
             if response.status().is_success() {
                 let openai_response: OpenAIResponse = response.json().unwrap();
-                let command = openai_response.choices[0].message.content.trim().to_string();
+                let command_with_block = openai_response.choices[0].message.content.trim().to_string();
+
+                // Extract the pure command without the code block
+                let parsed_command = extract_command(&command_with_block).unwrap_or(&command_with_block);
+
+                // Load banned commands
+                let banned_commands = load_banned_commands().unwrap_or_else(|err| {
+                    eprintln!("Error loading banned commands: {}", err);
+                    Vec::new()
+                });
+
+                // Check if the pure command is banned
+                if banned_commands.iter().any(|b| b == parsed_command) {
+                    println!(
+                        "Warning: The command \"{}\" is banned and will not be executed.",
+                        parsed_command
+                    );
+                    return;
+                }
 
                 if no_execute {
-                    println!("{}", command);
+                    println!("{}", parsed_command);
                 } else {
-                    println!("\nGenerated Command:\n{}\n", command);
+                    println!("\nGenerated Command:\n```bash\n{}\n```", parsed_command);
 
-                    // Prompt user for confirmation
-                    print!("Do you want to execute this command? (Y/n) ");
+                    // Prompt user for confirmation with 'y', 'n', 'b' options
+                    print!("Do you want to execute this command? (Y/n/b for ban) ");
                     io::stdout().flush().unwrap();
 
                     let mut confirmation = String::new();
                     io::stdin().read_line(&mut confirmation).unwrap();
                     let confirmation = confirmation.trim();
 
-                    if confirmation.eq_ignore_ascii_case("n") || confirmation.eq_ignore_ascii_case("no") {
-                        println!("Command execution cancelled.");
-                    } else {
-                        // Default to 'yes' if input is empty or any other input
-                        let parsed_command = extract_command(&command).unwrap_or(&command);
-                        execute_command(parsed_command);
+                    match confirmation.to_lowercase().as_str() {
+                        "y" | "yes" | "" => {
+                            // Execute the pure command
+                            execute_command(parsed_command);
+                        }
+                        "n" | "no" => {
+                            println!("Command execution cancelled.");
+                        }
+                        "b" | "ban" => {
+                            // Add the pure command to the banned list
+                            if let Err(e) = add_banned_command(parsed_command) {
+                                eprintln!("Error banning the command: {}", e);
+                            } else {
+                                println!("Command \"{}\" has been banned.", parsed_command);
+                            }
+                        }
+                        _ => {
+                            println!("Invalid input. Command execution cancelled.");
+                        }
                     }
                 }
             } else {
@@ -129,4 +193,14 @@ fn extract_command(input: &str) -> Option<&str> {
         .and_then(|s| s.strip_suffix("\n```"))
 }
 
-
+/// (Optional) You may want to initialize the banned commands file if it doesn't exist.
+/// You can call this function during your application's initialization phase.
+pub(crate) fn initialize_banned_commands_file() {
+    let path = PathBuf::from(BANNED_COMMANDS_FILE);
+    if !path.exists() {
+        if let Err(e) = fs::File::create(&path) {
+            eprintln!("Error creating banned commands file: {}", e);
+            std::process::exit(1);
+        }
+    }
+}

@@ -1,6 +1,6 @@
 use std::fs::OpenOptions;
 use crate::cli::execute_command;
-use crate::openai::process_prompt;
+use crate::openai::{initialize_banned_commands_file, process_prompt};
 use crate::utils::{get_current_dir_with_tilde, get_username};
 use colored::Colorize;
 use rustyline::error::ReadlineError;
@@ -29,6 +29,7 @@ impl ShellState {
 
 // Main function to run the shell in continuous mode
 pub(crate) fn run_shell_mode(no_execute: bool) {
+    initialize_banned_commands_file();
     let mut state = ShellState::new();
     println!("{}", "Entering continuous shell mode. Type 'exit' to quit.".cyan());
 
