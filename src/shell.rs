@@ -1,11 +1,11 @@
-use std::fs::OpenOptions;
 use crate::cli::execute_command;
-use crate::openai::{initialize_banned_commands_file, process_prompt};
+use crate::openai::{initialize_commands_files, process_prompt};
 use crate::utils::{get_current_dir_with_tilde, get_username};
 use colored::Colorize;
 use rustyline::error::ReadlineError;
-use rustyline::{Editor};
 use rustyline::history::FileHistory;
+use rustyline::Editor;
+use std::fs::OpenOptions;
 
 // Enum representing the different modes of the shell
 enum Mode {
@@ -29,7 +29,7 @@ impl ShellState {
 
 // Main function to run the shell in continuous mode
 pub(crate) fn run_shell_mode(no_execute: bool) {
-    initialize_banned_commands_file();
+    initialize_commands_files();
     let mut state = ShellState::new();
     println!("{}", "Entering continuous shell mode. Type 'exit' to quit.".cyan());
 

@@ -33,6 +33,8 @@ use crate::utils::start_loading_animation;
 
 /// Path to the banned commands file.
 const BANNED_COMMANDS_FILE: &str = ".gptsh_banned";
+/// Path to the allowed commands file.
+const ALLOWED_COMMANDS_FILE: &str = ".gptsh_allowed";
 
 /// Handles non-success responses from the OpenAI API.
 pub(crate) fn handle_non_success(response: Response) {
@@ -73,8 +75,25 @@ fn add_banned_command(command: &str) -> io::Result<()> {
     Ok(())
 }
 
+/// Loads the list of allowed commands from the `.gptsh_allowed` file.
+/// If the file does not exist, it returns an empty vector.
+fn load_allowed_commands() -> io::Result<Vec<String>> {
+    let path = PathBuf::from(ALLOWED_COMMANDS_FILE);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let file = fs::File::open(path)?;
+    let reader = BufReader::new(file);
+    let commands = reader
+        .lines()
+        .filter_map(Result::ok)
+        .collect::<Vec<String>>();
+    Ok(commands)
+}
+
 /// Processes the user prompt and communicates with the OpenAI API.
-/// Integrates the Never Allow Commands feature to prevent execution of banned commands.
+/// Integrates the Never Allow and Always Allow Commands features to manage command execution.
 pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
     let api_key = env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
         eprintln!("Error: OPENAI_API_KEY not set in environment.");
@@ -125,13 +144,30 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
                 // Extract the pure command without the code block
                 let parsed_command = extract_command(&command_with_block).unwrap_or(&command_with_block);
 
-                // Load banned commands
+                // Load allowed and banned commands
+                let allowed_commands = load_allowed_commands().unwrap_or_else(|err| {
+                    eprintln!("Error loading allowed commands: {}", err);
+                    Vec::new()
+                });
+
                 let banned_commands = load_banned_commands().unwrap_or_else(|err| {
                     eprintln!("Error loading banned commands: {}", err);
                     Vec::new()
                 });
 
-                // Check if the pure command is banned
+                // Check if the command is in the allowed list
+                if allowed_commands.iter().any(|a| a == parsed_command) {
+                    // Execute without confirmation
+                    if no_execute {
+                        println!("{}", parsed_command);
+                    } else {
+                        println!("\nGenerated Command:\n```bash\n{}\n```", parsed_command);
+                    }
+                    execute_command(parsed_command);
+                    return;
+                }
+
+                // Check if the command is banned
                 if banned_commands.iter().any(|b| b == parsed_command) {
                     println!(
                         "Warning: The command \"{}\" is banned and will not be executed.",
@@ -193,13 +229,21 @@ fn extract_command(input: &str) -> Option<&str> {
         .and_then(|s| s.strip_suffix("\n```"))
 }
 
-/// (Optional) You may want to initialize the banned commands file if it doesn't exist.
+/// Initializes the banned and allowed commands files if they don't exist.
 /// You can call this function during your application's initialization phase.
-pub(crate) fn initialize_banned_commands_file() {
-    let path = PathBuf::from(BANNED_COMMANDS_FILE);
-    if !path.exists() {
-        if let Err(e) = fs::File::create(&path) {
+pub(crate) fn initialize_commands_files() {
+    let banned_path = PathBuf::from(BANNED_COMMANDS_FILE);
+    if !banned_path.exists() {
+        if let Err(e) = fs::File::create(&banned_path) {
             eprintln!("Error creating banned commands file: {}", e);
+            std::process::exit(1);
+        }
+    }
+
+    let allowed_path = PathBuf::from(ALLOWED_COMMANDS_FILE);
+    if !allowed_path.exists() {
+        if let Err(e) = fs::File::create(&allowed_path) {
+            eprintln!("Error creating allowed commands file: {}", e);
             std::process::exit(1);
         }
     }
