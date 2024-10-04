@@ -43,3 +43,9 @@ pub(crate) struct Choice {
 pub(crate) struct MessageContent {
     pub(crate) content: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Config {
+    /// Additional context provided to the LLM to tailor command generation.
+    pub context: Option<String>,
+}

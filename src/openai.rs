@@ -8,11 +8,11 @@ use std::{
 };
 
 use reqwest::blocking::{Client, Response};
-
 use crate::{
     cli::execute_command,
     models::{Message, OpenAIRequest, OpenAIResponse},
 };
+use crate::models::Config;
 use crate::utils::start_loading_animation;
 
 /// Path to the banned commands file.
@@ -268,8 +268,11 @@ fn load_context() -> io::Result<String> {
     if !path.exists() {
         return Ok(String::new());
     }
+
     let file = fs::File::open(&path)?;
     let reader = BufReader::new(file);
-    let lines = reader.lines().filter_map(Result::ok).collect::<Vec<String>>();
-    Ok(lines.join("\n"))
+    let config: Config = serde_json::from_reader(reader)?;
+    let context = config.context.unwrap_or_default();
+
+    Ok(context)
 }
