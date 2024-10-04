@@ -1,19 +1,3 @@
-/*
- * Copyright 2024 Blake Rhodes
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 use std::{
     env,
     fs::{self, OpenOptions},
@@ -35,6 +19,8 @@ use crate::utils::start_loading_animation;
 const BANNED_COMMANDS_FILE: &str = ".gptsh_banned";
 /// Path to the allowed commands file.
 const ALLOWED_COMMANDS_FILE: &str = ".gptsh_allowed";
+/// Path to the configuration file.
+const CONFIG_FILE: &str = ".gptsh_config";
 
 /// Handles non-success responses from the OpenAI API.
 pub(crate) fn handle_non_success(response: Response) {
@@ -94,6 +80,7 @@ fn load_allowed_commands() -> io::Result<Vec<String>> {
 
 /// Processes the user prompt and communicates with the OpenAI API.
 /// Integrates the Never Allow and Always Allow Commands features to manage command execution.
+/// Includes the additional context from the .gptsh_config file.
 pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
     let api_key = env::var("OPENAI_API_KEY").unwrap_or_else(|_| {
         eprintln!("Error: OPENAI_API_KEY not set in environment.");
@@ -102,15 +89,32 @@ pub(crate) fn process_prompt(prompt: &str, no_execute: bool) {
 
     let client = Client::new();
 
+    // Load the context
+    let context = load_context().unwrap_or_else(|err| {
+        eprintln!("Error loading context: {}", err);
+        String::new()
+    });
+
+    let mut messages = Vec::new();
+
+    if !context.is_empty() {
+        messages.push(Message {
+            role: "system".to_string(),
+            content: context.clone(),
+        });
+    }
+
+    messages.push(Message {
+        role: "user".to_string(),
+        content: format!(
+            "Translate the following prompt into a bash command without explanation:\n{}",
+            prompt
+        ),
+    });
+
     let request_body = OpenAIRequest {
         model: "gpt-4o".to_string(),
-        messages: vec![Message {
-            role: "user".to_string(),
-            content: format!(
-                "Translate the following prompt into a bash command without explanation:\n{}",
-                prompt
-            ),
-        }],
+        messages,
     };
 
     // Start loading animation
@@ -247,4 +251,25 @@ pub(crate) fn initialize_commands_files() {
             std::process::exit(1);
         }
     }
+
+    let config_path = PathBuf::from(CONFIG_FILE);
+    if !config_path.exists() {
+        if let Err(e) = fs::File::create(&config_path) {
+            eprintln!("Error creating config file: {}", e);
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Loads the context from the `.gptsh_config` file.
+/// If the file does not exist, it returns an empty string.
+fn load_context() -> io::Result<String> {
+    let path = PathBuf::from(CONFIG_FILE);
+    if !path.exists() {
+        return Ok(String::new());
+    }
+    let file = fs::File::open(&path)?;
+    let reader = BufReader::new(file);
+    let lines = reader.lines().filter_map(Result::ok).collect::<Vec<String>>();
+    Ok(lines.join("\n"))
 }

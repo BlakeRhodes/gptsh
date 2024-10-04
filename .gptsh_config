@@ -1,0 +1,4 @@
+You are working in a development environment where most projects are written in Rust.
+The source code is located in the 'src' directory.
+Use `cargo` commands for building and testing Rust projects.
+When the user askes to make a commit remember to run git add . first so all the changed files will be commited.
