@@ -256,7 +256,6 @@ Follow these steps to build gptsh from source:
    ./target/release/gptsh --help
    ```
 
-Here's a sample contribution guide inspired by Apache-licensed projects for your GitHub page:
 
 ---
 
@@ -288,3 +287,5 @@ If you encounter any issues or have questions, please open a GitHub issue with d
 Copyright 2024 Blake Rhodes
 
 This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
+
+The project contains ai generated code and documentation.
